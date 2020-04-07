@@ -61,3 +61,60 @@ class FunctionStopper(Stopper):
                 "Stop object must be ray.tune.Stopper subclass to be detected "
                 "correctly.")
         return is_function
+    
+    
+class EarlyStopping(Stopper):
+    """Early stops the training if validation performance doesn't improve after a given patience."""
+
+    def __init__(self,
+                 patience=7,
+                 verbose=False,
+                 delta=0,
+                 monitor='val_loss',
+                 mode='min'):
+        """
+        Args:
+            patience (int): How long to wait after last time validation loss improved.
+                            Default: 7
+            verbose (bool): If True, prints a message for each validation loss improvement. 
+                            Default: False
+            delta (float): Minimum change in the monitored quantity to qualify as an improvement.
+                            Default: 0
+            monitor (str): Evaluation metric to monitor for the performance
+            mode (str): min or max.
+        """
+        self.patience = patience
+        self.verbose = verbose
+        self.monitor = monitor
+        self.mode = mode
+        self.counter = {}
+        self.best_score = {}
+        self.early_stop = {}
+        self.delta = delta
+
+    def __call__(self, trial_id, result):
+        """Returns true if the trial should be terminated given the result."""
+        if self.mode == 'min':
+            score = -result[self.monitor]
+        else:
+            score = result[self.monitor]
+
+        if trial_id in self.best_score:
+            if score <= self.best_score[trial_id] + self.delta:
+                self.counter[trial_id] += 1
+                print(f'EarlyStopping counter: {self.counter[trial_id]} out of {self.patience}')
+                if self.counter[trial_id] >= self.patience:
+                    self.early_stop[trial_id] = True
+            else:
+                self.best_score[trial_id] = score
+                self.counter[trial_id] = 0
+        else:
+            self.counter[trial_id] = 0
+            self.best_score[trial_id] = score
+            self.early_stop[trial_id] = False
+
+        return self.early_stop[trial_id]
+
+    def stop_all(self):
+        """Returns true if the experiment should be terminated."""
+        return False
